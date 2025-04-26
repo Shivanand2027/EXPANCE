@@ -1,0 +1,11 @@
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-WTF
+Flask-Bcrypt
+WTForms
+reportlab
+matplotlib
+pillow
+requests
+python-dotenv
