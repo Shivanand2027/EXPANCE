@@ -14,16 +14,36 @@ from chatbot import chat
 from forms import CreateGroupForm, LoginForm, RegistrationForm, ExpenseForm, JoinGroupForm, SplitPaymentForm
 from models import Group, ExpenseSplit
 from extensions import db, bcrypt, login_manager
-import os # Make sure os is imported
-from dotenv import load_dotenv # Import load_dotenv
+import os
+import logging
+from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
 from test_gemini_api import ask_gemini
 
 load_dotenv() # Load environment variables from .env file
 print(f"--- Loaded GEMINI_API_KEY in app.py: {os.getenv('GEMINI_API_KEY')}") # Add this line for debugging
 
+# Configure logging
+if not os.path.exists('logs'):
+    os.mkdir('logs')
+file_handler = RotatingFileHandler('logs/travel_expense.log', maxBytes=10240, backupCount=10)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+file_handler.setLevel(logging.INFO)
+
+# Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your_secret_key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.logger.addHandler(file_handler)
+app.logger.setLevel(logging.INFO)
+app.logger.info('Travel Expense startup')
+
+# Load environment variables
+load_dotenv()
+
+# App configuration
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-please-change')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
@@ -42,6 +62,17 @@ def load_user(user_id):
 @app.route('/')
 def home():
     return render_template('home.html')
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    app.logger.error(f'Server Error: {error}')
+    return render_template('error.html'), 500
+
+@app.errorhandler(404)
+def not_found_error(error):
+    app.logger.error(f'Page not found: {error}')
+    return render_template('error.html'), 404
 
 @app.route('/dashboard', methods=['GET', 'POST'])
 @login_required
